@@ -19,9 +19,10 @@ class Elevator {
     method run {
         my $i = 0;
         for ($!directions.split("", :skip-empty)) {
+            next unless .chars; # bug in 2015.10
+            $i++;
             self.go($_);
             $!first_basement //= $i if $!floor < 0;
-            $i++;
         }
         return $!floor;
     }
