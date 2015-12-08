@@ -3,6 +3,11 @@ use v6;
 
 use Test;
 
+class X::Constructor::Gate::InvalidOp is Exception {
+    has Str $.op;
+    method message () { return "Invalid op $.op" }
+}
+
 class Gate {
     has $.circuit;
     has $.wire is rw;
@@ -11,13 +16,16 @@ class Gate {
     my @subclasses;
     method register_subclass ( Gate $g ) { @subclasses.push( $g ) }
 
+    # I want this signature to be (Circuit $c, Str $op)
+    # but Circuit hasn't been declared yet and I don't know how.
     multi method new ($c, Str $op) {
         for @subclasses -> $s {
             my $o = $s.new($c, $op);
             #say $s.^name ~ "\.new( $op ) = " ~ $o.^name;
-            return $o if $o;
+            CATCH { when X::Constructor::Gate::InvalidOp { next } }
+            return $o;
         }
-        die "Invalid operation $op";
+        die X::Constructor::Gate::InvalidOp.new(:op($op));
     }
 
     method debug (Str $s) {}# say $s }
@@ -26,7 +34,10 @@ class Gate {
 
     method connection (Str $w) { return $.circuit.connections{$w} }
     method Numeric (Numeric $v) { return $v +& 0xFFFF }
-    method Str () { return $.wire // "0" }
+    method Str () {
+        return self.WHICH ~~ self.^name
+            ?? self.^name !! $.wire // "0";
+    }
 }
 
 class Circuit {
@@ -62,6 +73,7 @@ class Gate::SIGNAL is Gate {
         if ($op ~~ /^$<signal>=[\w+]$/) {
             return self.new( circuit => $c, signal => $/<signal>.Str );
         }
+        die X::Constructor::Gate::InvalidOp.new(:op($op));
     }
 
     method Numeric () {
@@ -86,6 +98,7 @@ class Gate::AND is Gate {
         if ($op ~~ /^$<l>=[\w+] \s+ AND \s+ $<r>=[\w+]$/) {
             return self.new( circuit => $c, l => $/<l>.Str, r => $/<r>.Str );
         }
+        die X::Constructor::Gate::InvalidOp.new(:op($op));
     }
 
     method Numeric () {
@@ -108,6 +121,7 @@ class Gate::OR is Gate {
         if ($op ~~ /^$<l>=[\w+] \s+ OR \s+ $<r>=[\w+]$/) {
             return self.new( circuit => $c, l => $/<l>.Str, r => $/<r>.Str );
         }
+        die X::Constructor::Gate::InvalidOp.new(:op($op));
     }
 
     method Numeric () {
@@ -128,6 +142,7 @@ class Gate::NOT is Gate {
         if ($op ~~ /^NOT \s+ $<r>=[\w+]$/) {
             return self.new( circuit => $c, r => $/<r>.Str );
         }
+        die X::Constructor::Gate::InvalidOp.new(:op($op));
     }
 
     method Numeric () {
@@ -147,6 +162,7 @@ class Gate::LSHIFT is Gate {
         if ( $op ~~ /^$<l>=[\w+] \s+ LSHIFT \s+ $<r>=[\d+]$/ ) {
             return self.new( circuit => $c, l => $/<l>.Str, r => $/<r>.Str );
         }
+        die X::Constructor::Gate::InvalidOp.new(:op($op));
     }
 
     method Numeric () {
@@ -168,6 +184,7 @@ class Gate::RSHIFT is Gate {
         if ( $op ~~ /^$<l>=[\w+] \s+ RSHIFT \s+ $<r>=[\d+]$/ ) {
             return self.new( circuit => $c, l => $/<l>.Str, r => $/<r>.Str );
         }
+        die X::Constructor::Gate::InvalidOp.new(:op($op));
     }
 
     method Numeric () {
@@ -179,6 +196,37 @@ class Gate::RSHIFT is Gate {
         return %.cache{$.l}{$.r} = callwith $l +> $r;
     }
 }
+
+subtest {
+    my %ops = (
+        "Foo Bar"    => Gate,
+        "123"        => Gate::SIGNAL,
+        "x"          => Gate::SIGNAL,
+        "x AND y"    => Gate::AND,
+        "x OR y"     => Gate::OR,
+        "NOT x"      => Gate::NOT,
+        "x LSHIFT 2" => Gate::LSHIFT,
+        "y RSHIFT 4" => Gate::RSHIFT,
+    );
+    my $c = Circuit.new;
+
+    for %ops.kv -> $op, $gate {
+        for %ops.values.unique -> $g {
+            if (
+                ( $g.^name eq 'Gate' and $g.^name ne $gate.^name )
+                    or
+                ( $g.^name ne 'Gate' and $g.^name eq $gate.^name )
+            ) {
+                lives-ok { $g.new($c, $op) }, "[$g] lives with $op";
+            }
+            else {
+                throws-like { $g.new($c, $op) },
+                    X::Constructor::Gate::InvalidOp,
+                        "[$g] throws error for $op";
+            }
+        }
+    }
+}, "Gate Exceptions";
 
 subtest {
     my $t = q{
