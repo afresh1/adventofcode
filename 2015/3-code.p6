@@ -17,7 +17,7 @@ sub deliver(Str $directions, Int $delivery_people = 1) {
     }
 
     my $i = 0;
-    for $directions.split('', :skip-empty).grep({.chars}) {
+    for $directions.split('', :skip-empty) {
         @x[$i] += %moves{'x'}{$_} || 0;
         @y[$i] += %moves{'y'}{$_} || 0;
 
