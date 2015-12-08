@@ -17,12 +17,9 @@ class Elevator {
     submethod BUILD (:$!directions) {}
 
     method run {
-        my $i = 0;
-        for ($!directions.split("", :skip-empty)) {
-            next unless .chars; # bug in 2015.10
-            $i++;
+        for ($!directions.split("", :skip-empty)).kv -> $i, $_ {
             self.go($_);
-            $!first_basement //= $i if $!floor < 0;
+            $!first_basement //= $i + 1 if $!floor < 0;
         }
         return $!floor;
     }
