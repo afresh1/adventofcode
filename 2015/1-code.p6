@@ -57,7 +57,7 @@ for (keys %first_basement) {
     my $e = Elevator.new($_);
     $e.run;
     is $e.first_basement, %first_basement{$_},
-        "[$_] Final Floor is %first_basement{$_}";
+        "[$_] First Basement is %first_basement{$_}";
 }
 
 subtest {
