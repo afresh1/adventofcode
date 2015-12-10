@@ -42,7 +42,7 @@ for 40..49 {
     $input = look-and-say($input);
 }
 
-is $input.chars, 0, "After 50 iterations, length is 0";
+is $input.chars, 6989950, "After 50 iterations, length is 6,989,950";
 spurt "10-output-50", "$input\n";
 
 done-testing;
