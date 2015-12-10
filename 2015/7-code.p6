@@ -12,18 +12,30 @@ class Gate {
     has $.circuit;
     has $.wire is rw;
     has %.cache;
+    my Regex $.re;
+    has %.args;
 
     my @subclasses;
     method register_subclass ( Gate $g ) { @subclasses.push( $g ) }
 
     # I want this signature to be (Circuit $c, Str $op)
     # but Circuit hasn't been declared yet and I don't know how.
+    multi method new ($c, Int $op) { self.new( $c, $op.Str ) }
     multi method new ($c, Str $op) {
-        for @subclasses -> $s {
-            my $o = $s.new($c, $op);
-            #say $s.^name ~ "\.new( $op ) = " ~ $o.^name;
-            CATCH { when X::Constructor::Gate::InvalidOp { next } }
-            return $o;
+        if ($.re.defined) {
+            if ($op ~~ $.re) {
+                my %args = $/.hash;
+                %args{$_} = %args{$_}.Str for %args.keys;
+                return self.new( circuit => $c, args => %args );
+            }
+        }
+        elsif (@subclasses) {
+            for @subclasses -> $s {
+                my $gate = $s.new($c, $op);
+                #say $s.^name ~ "\.new( $op ) = " ~ $gate.^name;
+                CATCH { when X::Constructor::Gate::InvalidOp { next } }
+                return $gate;
+            }
         }
         die X::Constructor::Gate::InvalidOp.new(:op($op));
     }
@@ -65,23 +77,16 @@ class Circuit {
 }
 
 class Gate::SIGNAL is Gate {
-    has Str $.signal;
-
+    my Regex $.re = rx/^$<signal>=[\w+]$/;
     $?PACKAGE.register_subclass($?PACKAGE);
-
-    multi method new ( Circuit $c, Str $op ) {
-        if ($op ~~ /^$<signal>=[\w+]$/) {
-            return self.new( circuit => $c, signal => $/<signal>.Str );
-        }
-        die X::Constructor::Gate::InvalidOp.new(:op($op));
-    }
 
     method Numeric () {
         return %.cache<signal> if %.cache<signal>:exists;
 
-        my $s = $.signal ~~ /^\d+$/
-            ?? $.signal.Int
-            !! self.connection($.signal).Numeric;
+        my $signal = %.args<signal>.Str;
+        my $s = $signal ~~ /^\d+$/
+            ?? $signal.Int
+            !! self.connection($signal).Numeric;
 
         self.debug("SIGNAL $s");
         return %.cache<signal> = callwith $s;
@@ -89,113 +94,85 @@ class Gate::SIGNAL is Gate {
 }
 
 class Gate::AND is Gate {
-    has Str $.l;
-    has Str $.r;
-
+    my $.re = rx/^$<l>=[\w+] \s+ AND \s+ $<r>=[\w+]$/;
     $?PACKAGE.register_subclass($?PACKAGE);
 
-    multi method new ( Circuit $c, Str $op ) {
-        if ($op ~~ /^$<l>=[\w+] \s+ AND \s+ $<r>=[\w+]$/) {
-            return self.new( circuit => $c, l => $/<l>.Str, r => $/<r>.Str );
-        }
-        die X::Constructor::Gate::InvalidOp.new(:op($op));
-    }
-
     method Numeric () {
-        return %.cache{$.l}{$.r} if %.cache{$.l}{$.r}:exists;
+        return %.cache{%.args<l>}{%.args<r>}
+            if %.cache{%.args<l>}{%.args<r>}:exists;
 
-        my $l = $.l ~~ /^\d+$/ ?? $.l !! self.connection($.l);
-        my $r = $.r ~~ /^\d+$/ ?? $.r !! self.connection($.r);
+        my $l = %.args<l> ~~ /^\d+$/
+            ?? %.args<l> !! self.connection(%.args<l>);
+        my $r = %.args<r> ~~ /^\d+$/
+            ?? %.args<r> !! self.connection(%.args<r>);
+
         self.debug("$r AND $l");
-        return %.cache{$.l}{$.r} = callwith $l +& $r;
+        return %.cache{%.args<l>}{%.args<r>} = callwith $l +& $r;
     }
 }
 
 class Gate::OR is Gate {
-    has Str $.l;
-    has Str $.r;
-
+    my $.re = rx/^$<l>=[\w+] \s+ OR \s+ $<r>=[\w+]$/;
     $?PACKAGE.register_subclass($?PACKAGE);
 
-    multi method new ( Circuit $c, Str $op ) {
-        if ($op ~~ /^$<l>=[\w+] \s+ OR \s+ $<r>=[\w+]$/) {
-            return self.new( circuit => $c, l => $/<l>.Str, r => $/<r>.Str );
-        }
-        die X::Constructor::Gate::InvalidOp.new(:op($op));
-    }
-
     method Numeric () {
-        return %.cache{$.l}{$.r} if %.cache{$.l}{$.r}:exists;
-        my $l = $.l ~~ /^\d+$/ ?? $.l !! self.connection($.l);
-        my $r = $.r ~~ /^\d+$/ ?? $.r !! self.connection($.r);
+        return %.cache{%.args<l>}{%.args<r>}
+            if %.cache{%.args<l>}{%.args<r>}:exists;
+        my $l = %.args<l> ~~ /^\d+$/
+            ?? %.args<l> !! self.connection(%.args<l>);
+        my $r = %.args<r> ~~ /^\d+$/
+            ?? %.args<r> !! self.connection(%.args<r>);
         self.debug("$r OR $l");
-        return %.cache{$.l}{$.r} = callwith $l +| $r;
+        return %.cache{%.args<l>}{%.args<r>} = callwith $l +| $r;
     }
 }
 
 class Gate::NOT is Gate {
-    has Str $.r;
-
+    my $.re = rx/^NOT \s+ $<r>=[\w+]$/;
     $?PACKAGE.register_subclass($?PACKAGE);
 
-    multi method new ( Circuit $c, Str $op ) {
-        if ($op ~~ /^NOT \s+ $<r>=[\w+]$/) {
-            return self.new( circuit => $c, r => $/<r>.Str );
-        }
-        die X::Constructor::Gate::InvalidOp.new(:op($op));
-    }
-
     method Numeric () {
-        my $r = $.r ~~ /^\d+$/ ?? $.r !! self.connection($.r);
+        my $r = %.args<r> ~~ /^\d+$/
+            ?? %.args<r> !! self.connection(%.args<r>);
         self.debug("NOT $r");
-        return %.cache{$.r} = callwith +^$r;
+        return %.cache{%.args<r>} = callwith +^$r;
     }
 }
 
 class Gate::LSHIFT is Gate {
-    has Str $.l;
-    has Str $.r;
-
+    my $.re = rx/^$<l>=[\w+] \s+ LSHIFT \s+ $<r>=[\d+]$/;
     $?PACKAGE.register_subclass($?PACKAGE);
 
-    multi method new ( Circuit $c, Str $op ) {
-        if ( $op ~~ /^$<l>=[\w+] \s+ LSHIFT \s+ $<r>=[\d+]$/ ) {
-            return self.new( circuit => $c, l => $/<l>.Str, r => $/<r>.Str );
-        }
-        die X::Constructor::Gate::InvalidOp.new(:op($op));
-    }
-
     method Numeric () {
-        return %.cache{$.l}{$.r} if %.cache{$.l}{$.r}:exists;
-        my $l = $.l ~~ /^\d+$/ ?? $.l !! self.connection($.l);
-        my $r = $.r ~~ /^\d+$/ ?? $.r !! self.connection($.r);
+        return %.cache{%.args<l>}{%.args<r>}
+            if %.cache{%.args<l>}{%.args<r>}:exists;
+        my $l = %.args<l> ~~ /^\d+$/
+            ?? %.args<l> !! self.connection(%.args<l>);
+        my $r = %.args<r> ~~ /^\d+$/
+            ?? %.args<r> !! self.connection(%.args<r>);
+
         self.debug("$l LSHIFT $r");
-        return %.cache{$.l}{$.r} = callwith $l +< $r;
+        return %.cache{%.args<l>}{%.args<r>} = callwith $l +< $r;
     }
 }
 
 class Gate::RSHIFT is Gate {
-    has Str $.l;
-    has Str $.r;
-
+    my $.re = rx/^$<l>=[\w+] \s+ RSHIFT \s+ $<r>=[\d+]$/;
     $?PACKAGE.register_subclass($?PACKAGE);
 
-    multi method new ( Circuit $c, Str $op ) {
-        if ( $op ~~ /^$<l>=[\w+] \s+ RSHIFT \s+ $<r>=[\d+]$/ ) {
-            return self.new( circuit => $c, l => $/<l>.Str, r => $/<r>.Str );
-        }
-        die X::Constructor::Gate::InvalidOp.new(:op($op));
-    }
-
     method Numeric () {
-        return %.cache{$.l}{$.r} if %.cache{$.l}{$.r}:exists;
-        my $l = $.l ~~ /^\d+$/ ?? $.l !! self.connection($.l);
-        my $r = $.r ~~ /^\d+$/ ?? $.r !! self.connection($.r);
+        return %.cache{%.args<l>}{%.args<r>}
+            if %.cache{%.args<l>}{%.args<r>}:exists;
+        my $l = %.args<l> ~~ /^\d+$/
+            ?? %.args<l> !! self.connection(%.args<l>);
+        my $r = %.args<r> ~~ /^\d+$/
+            ?? %.args<r> !! self.connection(%.args<r>);
         return 0 if $l == 0;
         self.debug("$l RSHIFT $r");
-        return %.cache{$.l}{$.r} = callwith $l +> $r;
+        return %.cache{%.args<l>}{%.args<r>} = callwith $l +> $r;
     }
 }
+
 
 subtest {
     my %ops = (
@@ -265,10 +242,7 @@ subtest {
     is $a, 16076, "First, a is 16,076";
 
     $c.reset;
-    $c.connections<b> = Gate::SIGNAL.new(
-        circuit => $c,
-        signal  => $a.Str,
-    );
+    $c.connections<b> = Gate::SIGNAL.new( $c, $a.Str );
     is $c.connections<a>.Numeric, 2797, "Then a is 2,797";
 }, "Input";
 
