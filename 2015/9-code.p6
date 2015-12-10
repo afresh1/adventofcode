@@ -7,7 +7,9 @@ sub load_cities ($d) {
     my %cities;
     for $d.flat {
         / $<start>=[\w+] \s+ to \s+ $<end>=[\w+] \s+ \= \s+ $<distance>=[\d+] /;
-        %directions{$/<start>}{$/<end>} = $/<distance>.Int;
+        %directions{$/<start>}{$/<end>}
+            = %directions{$/<end>}{$/<start>}
+            = $/<distance>.Int;
         %cities{$/<start>, $/<end>} = (1, 1);
     }
     return { :cities( %cities.keys ), :directions( %directions ) };
@@ -15,27 +17,23 @@ sub load_cities ($d) {
 
 sub distances ($d) {
     my %c = load_cities($d);
-    my %directions;
+    my %d ::= %c<directions>;
 
+    my $min = 999_999_999;
+    my $max = -1;
+
+    my %seen;
     for %c.<cities>.permutations
-      .grep({ not %directions{ .reverse.join(" -> ") } }) {
-        my $k = .join(" -> ");
-        my $v = 0;
+        .grep({ %seen{$_.join(':')} = 1; !%seen{$_.reverse.join(':')}; })
+        -> @c {
 
-        my ($start, @c) = $_.flat;
-        while (@c) {
-            my $end = @c.shift;
+        my $d = ( 1..@c.end ).map({ %d{@c[$_ - 1]}{@c[$_]} }).reduce(&[+]);
 
-            $v += %c<directions>{$start}{$end}
-                || %c<directions>{$end}{$start};
-
-            $start = $end;
-        }
-
-        %directions{$k} = $v;
+        $max = $d if $max < $d;
+        $min = $d if $min > $d;
     }
 
-    return %directions;
+    return { min => $min, max => $max };
 }
 
 sub distances_concurrent ($d) {
@@ -82,14 +80,14 @@ subtest {
     );
 
     my %d = distances(@directions);
-    is %d.values.min, 605, "Min distance is 605";
-    is %d.values.max, 982, "Max distance is 982";
+    is %d<min>, 605, "Min distance is 605";
+    is %d<max>, 982, "Max distance is 982";
 }, "Test Distance";
 
 subtest {
     my %d = distances("9-input".IO.lines);
-    is %d.values.min, 207, "Min distance is 207";
-    is %d.values.max, 804, "Max distance is 804";
+    is %d<min>, 207, "Min distance is 207";
+    is %d<max>, 804, "Max distance is 804";
 }, "Input Distance";
 
 done-testing; exit;
@@ -102,14 +100,14 @@ subtest {
     );
 
     my %d = distances_concurrent(@directions);
-    is %d.values.min, 605, "Min distance is 605";
-    is %d.values.max, 982, "Max distance is 982";
+    is %d<min>, 605, "Min distance is 605";
+    is %d<max>, 982, "Max distance is 982";
 }, "Test Distance Concurrent";
 
 subtest {
     my %d = distances_concurrent("9-input".IO.lines);
-    is %d.values.min, 207, "Min distance is 207";
-    is %d.values.max, 804, "Max distance is 804";
+    is %d<min>, 207, "Min distance is 207";
+    is %d<max>, 804, "Max distance is 804";
 }, "Input Distance Concurrent";
 
 done-testing;
