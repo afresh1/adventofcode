@@ -26,8 +26,8 @@ sub distances ($d) {
     for %c.<cities>.permutations
         .grep({ %seen{$_.join(':')} = 1; !%seen{$_.reverse.join(':')}; })
         -> @c {
-
-        my $d = ( 1..@c.end ).map({ %d{@c[$_ - 1]}{@c[$_]} }).reduce(&[+]);
+        #my $d = [+] (@c Z @c[1..*]).flat.map({ %d{$^a}{$^b} });
+        my $d = [+] (1..@c.end).map({ %d{@c[$_-1]}{@c[$_]} });
 
         $max = $d if $max < $d;
         $min = $d if $min > $d;
