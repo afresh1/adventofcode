@@ -44,7 +44,10 @@ class Gate {
 
     method reset () { %.cache = () }
 
-    method connection (Str $w) { return $.circuit.connections{$w} }
+    method connection (Str $w) {
+        return $w.Numeric if $w ~~ /^\d+$/;
+        return $.circuit.connections{$w};
+    }
     method Numeric (Numeric $v) { return $v +& 0xFFFF }
     method Str () {
         return self.WHICH ~~ self.^name
@@ -83,10 +86,7 @@ class Gate::SIGNAL is Gate {
     method Numeric () {
         return %.cache<signal> if %.cache<signal>:exists;
 
-        my $signal = %.args<signal>.Str;
-        my $s = $signal ~~ /^\d+$/
-            ?? $signal.Int
-            !! self.connection($signal).Numeric;
+        my $s = self.connection(%.args<signal>).Numeric;
 
         self.debug("SIGNAL $s");
         return %.cache<signal> = callwith $s;
@@ -118,10 +118,10 @@ class Gate::OR is Gate {
     method Numeric () {
         return %.cache{%.args<l>}{%.args<r>}
             if %.cache{%.args<l>}{%.args<r>}:exists;
-        my $l = %.args<l> ~~ /^\d+$/
-            ?? %.args<l> !! self.connection(%.args<l>);
-        my $r = %.args<r> ~~ /^\d+$/
-            ?? %.args<r> !! self.connection(%.args<r>);
+
+        my $l = self.connection(%.args<l>);
+        my $r = self.connection(%.args<r>);
+
         self.debug("$r OR $l");
         return %.cache{%.args<l>}{%.args<r>} = callwith $l +| $r;
     }
@@ -132,8 +132,8 @@ class Gate::NOT is Gate {
     $?PACKAGE.register_subclass($?PACKAGE);
 
     method Numeric () {
-        my $r = %.args<r> ~~ /^\d+$/
-            ?? %.args<r> !! self.connection(%.args<r>);
+        return %.cache{%.args<r>} if $.cache{%.args<r>}:exists;
+        my $r =  self.connection(%.args<r>);
         self.debug("NOT $r");
         return %.cache{%.args<r>} = callwith +^$r;
     }
@@ -146,10 +146,9 @@ class Gate::LSHIFT is Gate {
     method Numeric () {
         return %.cache{%.args<l>}{%.args<r>}
             if %.cache{%.args<l>}{%.args<r>}:exists;
-        my $l = %.args<l> ~~ /^\d+$/
-            ?? %.args<l> !! self.connection(%.args<l>);
-        my $r = %.args<r> ~~ /^\d+$/
-            ?? %.args<r> !! self.connection(%.args<r>);
+
+        my $l = self.connection(%.args<l>);
+        my $r = self.connection(%.args<r>);
 
         self.debug("$l LSHIFT $r");
         return %.cache{%.args<l>}{%.args<r>} = callwith $l +< $r;
@@ -163,11 +162,10 @@ class Gate::RSHIFT is Gate {
     method Numeric () {
         return %.cache{%.args<l>}{%.args<r>}
             if %.cache{%.args<l>}{%.args<r>}:exists;
-        my $l = %.args<l> ~~ /^\d+$/
-            ?? %.args<l> !! self.connection(%.args<l>);
-        my $r = %.args<r> ~~ /^\d+$/
-            ?? %.args<r> !! self.connection(%.args<r>);
-        return 0 if $l == 0;
+
+        my $l = self.connection(%.args<l>);
+        my $r = self.connection(%.args<r>);
+
         self.debug("$l RSHIFT $r");
         return %.cache{%.args<l>}{%.args<r>} = callwith $l +> $r;
     }
