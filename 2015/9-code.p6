@@ -92,6 +92,8 @@ subtest {
     is %d.values.max, 804, "Max distance is 804";
 }, "Input Distance";
 
+done-testing; exit;
+
 subtest {
     my @directions = (
         'London to Dublin = 464',
