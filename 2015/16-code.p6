@@ -27,18 +27,20 @@ my %aunts = "16-input".IO.lines.map({ decode $_ }).hash;
 for %aunts.kv -> $name, %stats {
     %stats<score> = 0;
     %stats<wrong_score> = 0;
-    for %clues.kv -> $clue, $count {
-        next unless %stats{$clue}:exists;
-        %stats<wrong_score>++ if %stats{$clue} == $count;
+    for ( %clues.keys ∩ %stats.keys ).keys -> $clue {
+        my $have = %stats{$clue};
+        my $want = %clues{$clue};
+
+        %stats<wrong_score>++ if $have == $want;
 
         given $clue {
-            when ( < cats trees >.first($clue) ) {
-                %stats<score>++ if %stats{$clue} > $count;
+            when ( $_ ∈ < cats trees > ) {
+                %stats<score>++ if $have > $want;
             }
-            when ( < pomeranians goldfish >.first($clue) ) {
-                %stats<score>++ if %stats{$clue} < $count;
+            when ( $_ ∈ < pomeranians goldfish > ) {
+                %stats<score>++ if $have < $want;
             }
-            default { %stats<score>++ if %stats{$clue} == $count }
+            default { %stats<score>++ if $have == $want }
         }
     }
 }
