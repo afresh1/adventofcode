@@ -3,31 +3,29 @@ use v6;
 use Test;
 
 sub parse-state (@lines) {
-    my %convert = ( '#' => 1, '.' => 0 );
-    return @lines.map({ .split('', :skip-empty)
+    my %convert = ( '#' => 1, '.' => 0, '' => 0 );
+    my @state = @lines.map({ .split('')
         .map({ %convert{$_} }).Array }).Array;
+    my @blank = ( 0 xx @state[0].elems );
+    @state = ( @blank, |@state, @blank );
 }
 
 sub count-lights (@state) { return [+] @state.flat.map({ [+] .flat }) }
 
 sub next-state (@state) {
-    my @next;# = @state;
+    my @next = @state.map({ [ 0 xx @state[0].elems ] });
 
     state @coords = [ -1, 0, 1 ];
 
-    for @state.kv -> $i, @row {
-        for @row.kv -> $j, $light {
-            my $count = @coords.map({ $_ + $i })
-                .grep({ $_ >= 0 and $_ <= @state.end }).map( -> $ni {
+    for [1 .. @state.end - 1] -> $i {
+        my @row ::= @state[$i];
 
-                @coords.map({ $_ + $j })
-                    .grep({ $_ >= 0 and $_ <= @row.end }).map( -> $nj {
-
-                    @state[$ni][$nj];
-                });
+        for [1 .. @row.end - 1] -> $j {
+            my $light := @state[$i][$j];
+            my $count = @coords.map({ $_ + $i }).map( -> $ni {
+                @coords.map({ $_ + $j }).map( -> $nj { @state[$ni][$nj] });
             }).flat.reduce(&[+]) - $light;
 
-            @next[$i][$j] = 0;
             if ($light) { @next[$i][$j] = 1 if $count ∈ set( 2, 3 ) }
             else        { @next[$i][$j] = 1 if $count == 3 }
         }
@@ -38,11 +36,11 @@ sub next-state (@state) {
 
 sub next-stuck-state (@state) {
     my &set-corners = sub (@a) {
-        my $e = @a[0].end;
-        @a[ 0][ 0] = 1;
-        @a[ 0][$e] = 1;
+        my $e = @a[0].end - 1;
+        @a[ 1][ 1] = 1;
+        @a[ 1][$e] = 1;
         @a[$e][$e] = 1;
-        @a[$e][ 0] = 1;
+        @a[$e][ 1] = 1;
         return @a;
     }
 
@@ -145,12 +143,14 @@ my @stuck-lights = [
 ];
 
 is-deeply parse-state( @test-lights[0] ),
-    [[0, 1, 0, 1, 0, 1],
-     [0, 0, 0, 1, 1, 0],
-     [1, 0, 0, 0, 0, 1],
-     [0, 0, 1, 0, 0, 0],
-     [1, 0, 1, 0, 0, 1],
-     [1, 1, 1, 1, 0, 0]], "Correctly parsed test lights";
+    [[0, 0, 0, 0, 0, 0, 0, 0],
+     [0, 0, 1, 0, 1, 0, 1, 0],
+     [0, 0, 0, 0, 1, 1, 0, 0],
+     [0, 1, 0, 0, 0, 0, 1, 0],
+     [0, 0, 0, 1, 0, 0, 0, 0],
+     [0, 1, 0, 1, 0, 0, 1, 0],
+     [0, 1, 1, 1, 1, 0, 0, 0],
+     [0, 0, 0, 0, 0, 0, 0, 0]], "Correctly parsed test lights";
 
 is-deeply count-lights( parse-state( @test-lights[0] ) ),
     15, "Correct number of test lights are on";
