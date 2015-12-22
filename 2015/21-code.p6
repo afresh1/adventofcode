@@ -38,7 +38,14 @@ class Store {
 
         for %.aisles.kv -> $section, @items {
             %options{$section} = %requirements{$section}.flat.map({
-                    |@items.combinations($_).list }).list;
+                    |@items.combinations($_).grep({
+                        my %seen;
+                        for $_.map({ $_<name> }) -> $name {
+                            return False if %seen{$name}++;
+                        }
+                        True;
+                    }).list
+                }).list;
         }
 
         my @options;
