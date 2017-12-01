@@ -2,9 +2,9 @@
 use Test;
 
 sub uncaptcha(Str $s, Int $rot = Int($s.chars/2)) returns Int {
-    my @c = $s.split('', :skip-empty);
+    my @c = $s.comb;
     my @i = @c.rotate(-$rot);
-    return [+] map { $_[1] }, grep { @i[$^a] == $^b }, @c.kv;
+    return [+] map {.tail}, grep { @i[$^a] == $^b }, @c.kv;
 }
 
 is uncaptcha(    '1122', 1), 3, "Uncaptcha'd     1122 is 3";
