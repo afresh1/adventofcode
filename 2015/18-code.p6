@@ -18,7 +18,7 @@ sub next-state (@state) {
     state @coords = [ -1, 0, 1 ];
 
     for [1 .. @state.end - 1] -> $i {
-        my @row ::= @state[$i];
+        my @row := @state[$i];
 
         for [1 .. @row.end - 1] -> $j {
             my $light := @state[$i][$j];

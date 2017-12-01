@@ -30,7 +30,7 @@ is look-and-say('111221'), 312211, "(three 1s, two 2s, and one 1).";
 
 my $input = '1321131112';
 for 0..39 {
-    diag "$_: " ~ $input.chars;
+    note "$_: " ~ $input.chars;
     $input = look-and-say($input);
 }
 
@@ -38,7 +38,7 @@ is $input.chars, 492982, "After 40 iterations, length is 492,982";
 spurt "10-output-40", "$input\n";
 
 for 40..49 {
-    diag "$_: " ~ $input.chars;
+    note "$_: " ~ $input.chars;
     $input = look-and-say($input);
 }
 

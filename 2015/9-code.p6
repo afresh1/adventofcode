@@ -17,7 +17,7 @@ sub load_cities ($d) {
 
 sub distances ($d) {
     my %c = load_cities($d);
-    my %d ::= %c<directions>;
+    my %d := %c<directions>;
 
     my $min = 999_999_999;
     my $max = -1;
