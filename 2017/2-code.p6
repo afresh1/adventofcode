@@ -3,7 +3,7 @@ use Test;
 
 sub checksum(Str $sheet) {
     my @sheet = $sheet.split(/\n/).grep({$_}).map({ .comb(/\d+/).map({.Int}).Array });
-    return @sheet.map({ .max - .min }).sum;
+    return @sheet.map(*.minmax.bounds.reduce(&[R-]) ).sum; #map({ .max - .min }).sum;
 }
 
 is checksum(q{
@@ -21,7 +21,7 @@ say "Checksum for 2-input is: " ~ checksum("2-input".IO.slurp);
 
 sub even_checksum(Str $sheet) {
     my @sheet = $sheet.split(/\n/).grep({$_}).map({ .comb(/\d+/).map({.Int}).Array });
-    return @sheet.map({ .combinations(2).grep({ .max % .min == 0 }).map({ .max / .min }) }).flat.sum;
+    return @sheet.map( *.combinations(2).grep({ .max % .min == 0 }).map({ .max / .min }) ).flat.sum;
 }
 
 is even_checksum(q{
