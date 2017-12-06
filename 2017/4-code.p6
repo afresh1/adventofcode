@@ -8,10 +8,7 @@ use Test;
 # words (lowercase letters) separated by spaces.
 
 sub password-policy1(Str $password) {
-    my @words = $password.comb(/\w+/);
-    my %seen;
-    for (@words) { return False if %seen{$_}++ }
-    return True;
+    return not $password.comb(/\w+/).repeated;
 }
 
 # To ensure security, a valid passphrase must contain no duplicate words.
@@ -44,10 +41,7 @@ ok password-policy1("aa bb cc dd aaa"),
 # form any other word in the passphrase.
 
 sub password-policy2(Str $password) {
-    my @words = $password.comb(/\w+/);
-    my %seen;
-    for (@words) { return False if %seen{$_.comb.sort.join}++ }
-    return True;
+    return not $password.comb(/\w+/).map({ .comb.sort.join }).repeated;
 }
 
 # For example:
@@ -60,7 +54,7 @@ ok password-policy2("a ab abc abd abf abj"),
      "a ab abc abd abf abj is a valid passphrase, because all letters need to be used when forming another word.";
 ok password-policy2("iiii oiii ooii oooi oooo"),
      "iiii oiii ooii oooi oooo is valid.";
-ok !password-policy2("oiii ioii iioi iiio");
+ok !password-policy2("oiii ioii iioi iiio"),
      "oiii ioii iioi iiio is not valid - any of these words can be rearranged to form any other word.";
 
 # Under this new system policy, how many passphrases are valid?
