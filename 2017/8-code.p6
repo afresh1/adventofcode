@@ -31,9 +31,9 @@ subset Register of Str where /^<[a..z]>+/;
 subset Operator of Str where /^[ '!=' | <[\<\>\=]> '='? ]$/;
 
 class Condition {
-    has Register $.register;
-    has Operator $.operator;
-    has Int      $.value;
+    has Register $!register;
+    has Operator $!operator;
+    has Int      $!value;
 
     multi method new(Match $m) {
         self.bless(
@@ -43,59 +43,71 @@ class Condition {
         );
     }
 
-    method check(%registers) {
-        my $have = %registers{ $.register };
-        given $.operator {
-            when '!='  { $have !=  $.value }
-            when  '='  { $have  == $.value }
-            when  '==' { $have  == $.value }
-            when  '<'  { $have  <  $.value }
-            when  '<=' { $have  <= $.value }
-            when  '>'  { $have  >  $.value }
-            when  '>=' { $have  >= $.value }
-            default { die "Unknown operator $.operator" }
+    submethod BUILD(:$!register, :$!operator, :$!value) {}
+
+    method check($cpu) {
+        my $have = $cpu.get($!register);
+        given $!operator {
+            when '!='  { $have !=  $!value }
+            when  '='  { $have  == $!value }
+            when  '==' { $have  == $!value }
+            when  '<'  { $have  <  $!value }
+            when  '<=' { $have  <= $!value }
+            when  '>'  { $have  >  $!value }
+            when  '>=' { $have  >= $!value }
+            default { die "Unknown operator $!operator" }
         }
     }
 
-    method gist {
-        $.register.say;
-        return "" unless $.register;
-        return "if $.register $.operator $.value";
-    }
+    method gist { "if $!register $!operator $!value" }
 }
 
 class Instruction {
-    has Register  $.register  is required;
-    has Int       $.value     is required;
-    has Condition $.condition is default( Condition.new() );
+    has Register  $!register  is required;
+    has Int       $!value     is required;
+    has Condition $!condition;
 
     multi method new(Str $s) { self.new( InstructionLine.parse($s) ) }
     multi method new(Match $m) {
         my $value = $m<value>.Int;
         $value = -$value if $m<direction> eq 'dec';
 
-        return self.new(
+        return self.bless(
             :register($m<register>.Str),
             :value( $value ),
-            :condition( Condition.new( $m<condition> ) ),
+            :condition( $m<condition> ),
         );
     }
 
-    method process($cpu) {
-        if ( $!condition.check($cpu.registers) ) {
-            $cpu.registers{ $!register } += $!value;
+    submethod BUILD(:$!register, :$!value, :$condition) {
+        if ($condition) {
+            $!condition := $condition.isa(Condition)
+                ?? $condition
+                !! Condition.new($condition);
         }
     }
 
-    method gist { join " ", "$!register inc $!value", $!condition.gist }
+    method process($cpu) {
+        $cpu.add( $!register, $!value )
+            if not $!condition or $!condition.check($cpu);
+    }
+
+    method Str  { self.gist }
+    method gist {
+        join " ",
+            "$!register inc $!value",
+            $!condition ?? $!condition.gist !! ();
+    }
 }
 
 class CPU {
     has Int %.registers is default(0);
 
-    method process(Instruction $instruction) {
-        $instruction.process(self);
-    }
+    method process(Instruction $i) { $i.process(self) }
+
+    method get(Register $r) { %!registers{$r} }
+    method set(Register $r, Int $v) { %!registers{$r}  = $v }
+    method add(Register $r, Int $v) { %!registers{$r} += $v }
 
     method gist {%!registers.gist}
 }
@@ -106,6 +118,9 @@ a inc 1 if b < 5
 c dec -10 if a >= 1
 c inc -20 if c == 10
 }.lines.grep(*.chars).map({ Instruction.new($_) });
+
+is Instruction.new(:register('x'), :value(0)).Str, "x inc 0",
+    "Instruction without condition stringifies correctly";
 
 # These instructions would be processed as follows:
 {
