@@ -63,8 +63,10 @@ grammar Garbage {
     }
 
     rule group_wrapped { '{' <content>* '}' }
+
+    token piece_of_trash { <-[>]> }
     rule garbage_bag   { '<' <garbage>* '>' }
-    token garbage      {    \!. | <-[>]>    }
+    token garbage      { \!. | <piece_of_trash> }
     rule content       { [ <group> | <garbage_bag> ] [ ',' <content> ]? }
 }
 
@@ -108,12 +110,14 @@ ok Garbage.parse('<>,<a>,<!a>,<!>>', :rule('content')),
         '"{{<ab>},{<ab>},{<ab>},{<ab>}}" is a group';
 }
 
-sub count-garbage(Str $stream) {
+sub count-garbage(Str $stream, Str $want = 'score') {
+    my $trash = 0;
     my &deep = sub (Match $m) {
         my @c;
-        for $m.hash.values {
+        @c.push($m.made) if $m.made;
+        for $m.hash.kv -> $k, $_ {
+            $trash++ if $k eq 'piece_of_trash';
             if (.isa(Match)) {
-                @c.push(.made) if .made;
                 @c.push( |deep($_) );
             }
             elsif (.isa(Array)) {
@@ -122,8 +126,9 @@ sub count-garbage(Str $stream) {
         }
         return @c;
     };
-
-    return deep( Garbage.parse($stream) );
+    my @c = deep( Garbage.parse($stream) );
+    return $trash if $want eq 'trash';
+    return @c;
 }
 
 is count-garbage('{}'),      <1>, "count of 1.";
@@ -151,16 +156,18 @@ is count-garbage("9-input".IO.lines.first).sum, 7616,
 # To prove you've removed it, you need to count all of the characters within
 # the garbage. The leading and trailing < and > don't count, nor do any
 # canceled characters or the ! doing the canceling.
-#
-#     <>, 0 characters.
-#     <random characters>, 17 characters.
-#     <<<<>, 3 characters.
-#     <{!>}>, 2 characters.
-#     <!!>, 0 characters.
-#     <!!!>>, 0 characters.
-#     <{o"i!a,<{i<a>, 10 characters.
-#
+
+is count-garbage('<>', 'trash'), 0, "0 characters.";
+is count-garbage('<random characters>', 'trash'), 17, "17 characters.";
+is count-garbage('<<<<>', 'trash'), 3, "3 characters.";
+is count-garbage('<{!>}>', 'trash'), 2, "2 characters.";
+is count-garbage('<!!>', 'trash'), 0, "0 characters.";
+is count-garbage('<!!!>>', 'trash'), 0, "0 characters.";
+is count-garbage('<{o"i!a,<{i<a>', 'trash'), 10, "10 characters.";
+
 # How many non-canceled characters are within the garbage in your puzzle input?
 
+is count-garbage("9-input".IO.lines.first, 'trash'), 3838,
+    "Total trash in input is 3838";
 
 done-testing;
