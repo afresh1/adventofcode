@@ -1,68 +1,9 @@
 #!perl6
 use Test;
 
-# --- Day 10: Knot Hash ---
-#
-# You come across some programs that are trying to implement a software
-# emulation of a hash based on knot-tying. The hash these programs are
-# implementing isn't very strong, but you decide to help them anyway. You make
-# a mental note to remind the Elves later not to invent their own cryptographic
-# functions.
-#
-# This hash function simulates tying a knot in a circle of string with 256
-# marks on it. Based on the input to be hashed, the function repeatedly selects
-# a span of string, brings the ends together, and gives the span a half-twist
-# to reverse the order of the marks within it. After doing this many times, the
-# order of the marks is used to build the resulting hash.
-
-#   4--5   pinch   4  5           4   1
-#  /    \  5,0,1  / \/ \  twist  / \ / \
-# 3      0  -->  3      0  -->  3   X   0
-#  \    /         \ /\ /         \ / \ /
-#   2--1           2  1           2   5
-
-# To achieve this, begin with a list of numbers from 0 to 255, a current
-# position which begins at 0 (the first element in the list), a skip size
-# (which starts at 0), and a sequence of lengths (your puzzle input). Then, for
-# each length:
-#
-#     Reverse the order of that length of elements in the list, starting with
-#     the element at the current position.  Move the current position forward
-#     by that length plus the skip size.  Increase the skip size by one.
-#
-# The list is circular; if the current position and the length try to reverse
-# elements beyond the end of the list, the operation reverses using as many
-# extra elements as it needs from the front of the list. If the current
-# position moves past the end of the list, it wraps around to the front.
-# Lengths larger than the size of the list are invalid.
-
-class Knot {
-    has Int @!knots;
-    has Int @!string is default(0...255);
-
-    submethod BUILD(:@string) {
-        @string = 0...255 unless @string.elems;
-        @!string = @string;
-    }
-
-    method to-skip { @!knots.elems }
-
-    method tie(Int $length) {
-        my $index = $length - 1;
-        @!string[0..$index] = @!string[0..$index].reverse;
-        @!string = @!string.rotate( $length + self.to-skip );
-        @!knots.push( $length );
-    }
-
-    method value() {
-        my $index = [+] @!knots.sum, (0..@!knots.elems - 1).sum;
-        $index %= @!string.elems;
-        return @!string.rotate(-$index);
-    }
-
-    method Str   { self.value.join(' ') }
-    method gist  { @!string.join(' ') ~ ": " ~ @!knots.gist }
-}
+use lib IO::Path.new($?FILE).parent.add('lib');
+use Knot;
+use KnottedString;
 
 # Here's an example using a smaller list:
 {
@@ -126,88 +67,8 @@ class Knot {
 }
 
 # --- Part Two ---
-class KnottedString is Knot {
-    has Int $!rounds is default(64);
-    has Int @!lengths;
-
-# The logic you've constructed forms a single round of the Knot Hash algorithm;
-# running the full thing requires many of these rounds. Some input and output
-# processing is also required.
-#
-# First, from now on, your input should be taken not as a list of numbers, but
-# as a string of bytes instead. Unless otherwise specified, convert characters
-# to bytes using their ASCII codes. This will allow you to handle arbitrary
-# ASCII strings, and it also ensures that your input lengths are never larger
-# than 255. For example, if you are given 1,2,3, you should convert it to the
-# ASCII codes for each character: 49,44,50,44,51.
-
-    multi method new(Str $_) {
-        return self.bless unless .chars;
-        return self.bless(:lengths(.comb.map(*.ord)));
-    }
-
-# Once you have determined the sequence of lengths to use, add the following
-# lengths to the end of the sequence: 17, 31, 73, 47, 23. For example, if you
-# are given 1,2,3, your final sequence of lengths should be
-# 49,44,50,44,51,17,31,73,47,23 (the ASCII codes from the input string combined
-# with the standard length suffix values).
-
-    submethod BUILD(:@!lengths = ()) {
-        @!lengths.push( 17, 31, 73, 47, 23 );
-    }
-
-# Second, instead of merely running one round like you did above, run a total
-# of 64 rounds, using the same length sequence in each round. The current
-# position and skip size should be preserved between rounds. For example, if
-# the previous example was your first round, you would start your second round
-# with the same length sequence (3, 4, 1, 5, 17, 31, 73, 47, 23, now assuming
-# they came from ASCII codes and include the suffix), but start with the
-# previous round's current position (4) and skip size (4).
-
-    method tie-round()   { $!rounds--; self.tie($_) for @!lengths }
-    method hash-rounds() { self.tie-round while $!rounds > 0 }
-
-# Once the rounds are complete, you will be left with the numbers from 0 to 255
-# in some order, called the sparse hash. Your next task is to reduce these to a
-# list of only 16 numbers called the dense hash. To do this, use numeric
-# bitwise XOR to combine each consecutive block of 16 numbers in the sparse
-# hash (there are 16 such blocks in a list of 256 numbers). So, the first
-# element in the dense hash is the first sixteen elements of the sparse hash
-# XOR'd together, the second element in the dense hash is the second sixteen
-# elements of the sparse hash XOR'd together, etc.
-#
-# For example, if the first sixteen elements of your sparse hash are as shown
-# below, and the XOR operator is ^, you would calculate the first output number
-# like this:
-#
-# 65 ^ 27 ^ 9 ^ 1 ^ 4 ^ 3 ^ 40 ^ 50 ^ 91 ^ 7 ^ 6 ^ 0 ^ 2 ^ 5 ^ 68 ^ 22 = 64
-#
-# Perform this operation on each of the sixteen blocks of sixteen numbers in
-# your sparse hash to determine the sixteen numbers in your dense hash.
-
-    method dense-hash() {
-        return self.value.rotor(16).map(*.reduce(&[+^]));
-    }
-
-# Finally, the standard way to represent a Knot Hash is as a single hexadecimal
-# string; the final output is the dense hash in hexadecimal notation. Because
-# each number in your dense hash will be between 0 and 255 (inclusive), always
-# represent each number as two hexadecimal digits (including a leading zero as
-# necessary). So, if your first three numbers are 64, 7, 255, they correspond
-# to the hexadecimal numbers 40, 07, ff, and so the first six characters of the
-# hash would be 4007ff. Because every Knot Hash is sixteen such numbers, the
-# hexadecimal representation is always 32 hexadecimal digits (0-f) long.
-
-    method hashed {
-        self.hash-rounds;
-        return self.Str;
-    }
-
-    method Str() { self.dense-hash.map(*.fmt("%02x")).join }
-}
-
-# Here are some example hashes:
 {
+# Here are some example hashes:
     is KnottedString.new('').hashed, 'a2582a3a0e66e6e86e3812dcb672a272',
         "The empty string becomes a2582a3a0e66e6e86e3812dcb672a272.";
     is KnottedString.new('AoC 2017').hashed, '33efeb34ea91902bb2f59c9920caa6cd',
@@ -226,4 +87,4 @@ is KnottedString.new("10-input".IO.lines.head).hashed,
     '541dc3180fd4b72881e39cf925a50253',
     "Input hashed as expected";
 
- done-testing;
+done-testing;
