@@ -13,7 +13,17 @@
 # what they do. Here's what you determine:
 
 grammar InstructionDefinition {
-    token TOP { <snd> | <set> | <add> | <mul> | <mod> | <rcv> | <jgz>  }
+    token TOP {
+        <snd>
+      | <set>
+      | <add>
+      | <sbu>
+      | <mul>
+      | <mod>
+      | <rcv>
+      | <jgz>
+      | <jnz>
+  }
 
 #     snd X plays a sound with a frequency equal to the value of X.
     rule snd { 'snd' <value> }
@@ -23,6 +33,9 @@ grammar InstructionDefinition {
 
 #     add X Y increases register X by the value of Y.
     rule add { 'add' <register> <value> }
+
+#     sub X Y decreases register X by the value of Y.
+    rule sbu { 'sub' <register> <value> }
 
 #     mul X Y sets register X to the result of multiplying the value contained
 #     in register X by the value of Y.
@@ -42,6 +55,11 @@ grammar InstructionDefinition {
 #     offset of -1 jumps to the previous instruction, and so on.)
     rule jgz { 'jgz' <value> <value> }
 
+#     jnz X Y jumps with an offset of the value of Y, but only if the value of
+#     X is not zero. (An offset of 2 skips the next instruction, an offset of
+#     -1 jumps to the previous instruction, and so on.)
+    rule jnz { 'jnz' <value> <value> }
+
 # Many of the instructions can take either a register (a single letter) or a
 # number. The value of a register is the integer it contains; the value of a
 # number is that number.
@@ -60,10 +78,12 @@ class Instructions {
     method snd($/) { make ( $<value>.made ) }
     method set($/) { make ( $<register>.made, $<value>.made ) }
     method add($/) { make ( $<register>.made, $<value>.made ) }
+    method sbu($/) { make ( $<register>.made, $<value>.made ) }
     method mul($/) { make ( $<register>.made, $<value>.made ) }
     method mod($/) { make ( $<register>.made, $<value>.made ) }
     method rcv($/) { make ( $<value>.made ) }
     method jgz($/) { make $<value>.map(*.made) }
+    method jnz($/) { make $<value>.map(*.made) }
 
     method value($/)   {
         make $/<register> ?? $/<register>.made !! $/<integer>.made
