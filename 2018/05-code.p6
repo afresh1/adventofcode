@@ -14,17 +14,16 @@ my $match = / [ (<lower>) <{$0.uc}> ] || [ (<upper>) <{$0.lc}> ] /;
 }
 
 sub process-polymers ($orig) {
-	my @string = $orig.comb;
+	my @string = $orig.comb.map(&ord);
+
+	# Idea to turn into ord and test xor from
+	# https://www.reddit.com/r/adventofcode/comments/a3912m/2018_day_5_solutions/eb4qy4f/
 
 	my $i = 0;
 	while @string.elems > $i + 1 {
 		my ($x, $y) = @string[ $i, $i + 1 ];
 
-		if (
-		    $x.uniprop('Lowercase') and $x.uc eq $y
-			or
-		    $x.uniprop('Uppercase') and $x.lc eq $y
-		) {
+		if ( $x +^ $y == 0x20 ) {
 			splice @string, $i, 2;
 			$i-- if $i > 0;
 		}
@@ -33,7 +32,7 @@ sub process-polymers ($orig) {
 		}
 	}
 
-	return @string.join;
+	return @string.map(&chr).join;
 }
 
 is process-polymers("dabAcCaCBAcCcaDA").chars, 10,
