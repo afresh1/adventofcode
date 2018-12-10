@@ -1,6 +1,46 @@
 #!perl6
 use Test;
 
+class Marble {
+	has Int $!value;
+
+	has Marble $.prev;
+	has Marble $.next;
+
+	submethod BUILD(
+		:$!value,
+		:$!prev = self,
+		:$!next = self,
+	) {}
+
+	method Real    { $!value }
+	method Numeric { $!value }
+
+	method set-next( Marble $new ) { $!next = $new }
+	method set-prev( Marble $new ) { $!prev = $new }
+
+	method insert-after(Marble $marble) {
+		$!prev = $marble;
+		$!next = $marble.next;
+
+		$marble.set-next( self );
+		$!next.set-prev( self );
+
+		return self;
+	}
+
+	method remove() {
+		$!prev.set-next( $!next );
+		$!next.set-prev( $!prev );
+
+		my $next = $!next;
+
+		$!next = $!prev = self;
+
+		return $next;
+	}
+}
+
 sub parse-rule($line) {
 	my $m = $line ~~ m/
 	    $<players> = \d+ " players"
@@ -20,18 +60,16 @@ sub play-game(:$players, :$last-marble) {
 	my @score[$players];
 
 	my $player = 0;
-	my @board  = 0;
-	for 1..$last-marble -> $marble {
-		if $marble %% 23 {
-			@board = @board.rotate(-7);
+	my $current = Marble.new( value => 0 );
+	for (1..$last-marble).map({ Marble.new( value => $_ ) }) -> $marble {
 
-			my $prev = @board.pop.sum;
-			@score[ $player ] += $marble + $prev;
-			@board = @board.rotate;
+		if $marble %% 23 {
+			$current = $current.prev for ^7;
+			@score[ $player ] += $marble + $current;
+			$current = $current.remove;
 		}
 		else {
-			@board = @board.rotate;
-			@board.push($marble);
+			$current = $marble.insert-after( $current.next );
 		}
 
 		$player++;
