@@ -19,28 +19,20 @@ sub parse-rule($line) {
 sub play-game(:$players, :$last-marble) {
 	my @score[$players];
 
-	my $player   = 0;
-	my $position = 0;
-	my @board = 0;
+	my $player = 0;
+	my @board  = 0;
 	for 1..$last-marble -> $marble {
-		if $marble && $marble %% 23 {
-			$position = ( @board.elems + $position - 8 )
-			    % @board.elems;;
+		if $marble %% 23 {
+			@board = @board.rotate(-7);
 
-			my $prev = @board.splice( $position, 1 ).sum;
+			my $prev = @board.pop.sum;
 			@score[ $player ] += $marble + $prev;
+			@board = @board.rotate;
 		}
 		else {
-			if $position == @board.elems {
-				@board.push($marble);
-			}
-			else {
-				$position++;
-				@board.splice( $position, 0, $marble );
-			}
+			@board = @board.rotate;
+			@board.push($marble);
 		}
-		$position++;
-		$position %= @board.elems;
 
 		$player++;
 		$player %= $players;
